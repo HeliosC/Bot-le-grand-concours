@@ -13,6 +13,7 @@ function startBot() {
 	client.on('messageReactionAdd', () => {});
     client.on('messageReactionRemove', () => {});
     
+	//tbd
     client.login(process.env.BOT_TOKEN);
 }
 
