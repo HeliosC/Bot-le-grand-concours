@@ -1,0 +1,24 @@
+{
+  "name": "bot-le-grand-concours",
+  "version": "1.0.0",
+  "description": "bot for papierculs' Le grand concours",
+  "main": "index.js",
+  "scripts": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HeliosC/Bot-le-grand-concours.git"
+  },
+  "keywords": [
+    "bot",
+    "concours",
+    "papierculs"
+  ],
+  "author": "HeliosC",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/HeliosC/Bot-le-grand-concours/issues"
+  },
+  "homepage": "https://github.com/HeliosC/Bot-le-grand-concours#readme"
+}
