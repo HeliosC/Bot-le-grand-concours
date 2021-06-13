@@ -20,5 +20,8 @@
   "bugs": {
     "url": "https://github.com/HeliosC/Bot-le-grand-concours/issues"
   },
-  "homepage": "https://github.com/HeliosC/Bot-le-grand-concours#readme"
+  "homepage": "https://github.com/HeliosC/Bot-le-grand-concours#readme",
+  "dependencies": {
+    "discord.js": "^12.5.3"
+  }
 }
