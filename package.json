@@ -4,7 +4,9 @@
   "description": "bot for papierculs' Le grand concours",
   "main": "index.js",
   "scripts": {
-    "test": "test"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js",
+    "index": "nodemon -e js,handlebars,css index.js"
   },
   "repository": {
     "type": "git",
@@ -22,6 +24,16 @@
   },
   "homepage": "https://github.com/HeliosC/Bot-le-grand-concours#readme",
   "dependencies": {
-    "discord.js": "^12.5.3"
+    "@stomp/stompjs": "^6.1.2",
+    "axios": "^0.21.3",
+    "discord.js": "^12.5.3",
+    "ejs": "^3.1.6",
+    "express": "^4.17.1",
+    "html": "^1.0.0",
+    "socket.io": "^4.2.0",
+    "stomp-broker-js": "^1.3.0",
+    "stomp-client": "^0.9.0",
+    "stompjs": "^2.3.3",
+    "websocket": "^1.0.34"
   }
 }
