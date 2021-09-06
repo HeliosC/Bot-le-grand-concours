@@ -1,6 +1,6 @@
 const { Client, Message, MessageReaction, User, ReactionEmoji, Intents, Guild, GuildMember } = require("discord.js");
 const { isMod } = require("./utils");
-const { commandPrefix } = require("./constants");
+const { commandPrefix, rolesID, guildId, testChannel } = require("./constants");
 
 //donno if I can use it bc the UE project doesn't handle that
 const states = {
@@ -298,7 +298,7 @@ function startConcours(guild, players) {
 		})
 		.catch(console.error);
 
-	guild.channels.cache.get("855783890558779402") //channel
+	guild.channels.cache.get(testChannel) //channel
 		.send({ embed: { description: 
 			`ADMIN PANNEL
 
@@ -316,11 +316,11 @@ function startConcours(guild, players) {
 }
 
 function initConcours() {
-	let guild = client.guilds.cache.get("287533192573878272")
+	let guild = client.guilds.cache.get(guildId)
 
 	guild.members.fetch()
 		.then(members => {
-			let players = members.filter(m => m.roles.cache.some(r => r.id === "883465694556078120"))
+			let players = members.filter(m => m.roles.cache.some(r => r.id === rolesID.player))
 			startConcours(guild, players)
 		})
 		.catch(g => { console.error("fail to load members" + g)})
@@ -328,14 +328,14 @@ function initConcours() {
 
 function resetConcours() {
 	//delete messages and channels
-	adminPannel.delete()
+	// adminPannel.delete()
 	nQuestion = 0
 	playersInfo = new Map();
 	deleteChannels()
 }
 
 function deleteChannels() {
-	let guild = client.guilds.cache.get("287533192573878272")
+	let guild = client.guilds.cache.get(guildId)
 
 	guild.channels.cache.array().forEach(ch => {
 		if (ch.name == 'LE GRAND CONCOURS' || (ch.parent != null && ch.parent.name == 'LE GRAND CONCOURS')) {
