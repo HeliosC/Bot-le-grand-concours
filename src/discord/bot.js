@@ -1,25 +1,16 @@
-const { Client, Message, MessageReaction, User, ReactionEmoji, Intents, Guild, GuildMember } = require("discord.js");
+const { Client, Message, MessageReaction, User, Guild, GuildMember, MessageEmbed, MessageAttachment } = require("discord.js");
 const { isMod } = require("./utils");
 const { commandPrefix, rolesID, guildId, testChannel } = require("./constants");
 
-//donno if I can use it bc the UE project doesn't handle that
-const states = {
-	WELCOME: "state_welcome",
-	QUESTION: "state_question",
-	SUSPENS: "state_suspens",
-	ANSWER: "state_answer"
-}
-
-const state = states.WELCOME
-
 const answersEmojis = ["🇦", "🇧", "🇨", "🇩"];
 const answerEmojiMap = { "🇦": "A", "🇧": "B", "🇨": "C", "🇩": "D" };
-// const answersStr = ["A", "B", "C", "D"];
 const nextQuestionEmoji = '⏩'
 
 var playersInfo = new Map();
-var nQuestion = 0
-var timeRemaining = 0
+
+const TIME_TOTAL = 10
+const TIME_END = -3
+var timeRemaining = TIME_END
 
 var client
 var questionData
@@ -33,6 +24,7 @@ function startBot(mStompServer) {
 
 	botClient.on('ready', () => { 
 		console.log(`Logged in !`) 
+		resetDiscord()
 	});
 	botClient.on('error', (e) => console.error(e));
 	botClient.on('warn', (e) => console.warn(e));
@@ -40,7 +32,6 @@ function startBot(mStompServer) {
 
     botClient.on('message', (message) => onMessage(message));
 	botClient.on('messageReactionAdd', (reaction, user) => onReactionAdd(reaction, user));
-	botClient.on('messageReactionRemove', (reaction, user) => onReactionRemove(reaction, user));
     
     botClient.login(process.env.BOT_TOKEN);
 
@@ -75,24 +66,6 @@ function onReactionAdd(reaction, user) {
 	}
 }	
 
-//TODO DONT DUPLICATE onReactionAdd AND onReactionRemove
-/** 
- * @param {MessageReaction} reaction 
- * @param {User} user 
- * */
- function onReactionRemove(reaction, user) {
-	// if (user.bot) return
-
-	// let member = reaction.message.guild.member(user)
-	// if (isMod(member, reaction.message.guild) && reaction.message.id == adminPannel.id) {
-	// 	reaction.users.remove(user.id)
-	// } else if (playersInfo.has(user.id) && playersInfo.get(user.id).message.id == reaction.message.id) {
-	// 	reaction.users.remove(user.id)
-	// } else if (reaction.message.id != adminPannel.id){
-	// 	return
-	// }
-}
-
 /** 
  * @param {MessageReaction} reaction 
  * @param {User} admin 
@@ -100,7 +73,7 @@ function onReactionAdd(reaction, user) {
 function onAdminPannelReact(reaction, admin) {
 	const reactionEmoji = reaction.emoji.toString()
 	if (reactionEmoji == nextQuestionEmoji) {
-		launchNextQuestion({ question: "question", a:"a", b:"b", c:"c", d:"d" })
+		launchNextQuestion({ n: 1, question: "Comment s'appelle le cheval blanc d'Henri VI ?", a:"La réponse A", b:"Une autre réponse", c:"Prout !", d:"Tu sais :)", url: "https://cdn.futura-sciences.com/buildsv6/images/largeoriginal/d/5/3/d53a89351b_50036006_mandelbrot-ensemble-wikipedia-commons.jpg" })
 		adminPannel.reactions.cache.array().forEach(r => r.users.remove(admin.id))
 	} else if (answersEmojis.includes(reactionEmoji)) {
 		revealAnswer(reactionEmoji)
@@ -111,9 +84,8 @@ function onAdminPannelReact(reaction, admin) {
 
 function launchNextQuestion(mQuestionData) {
 	questionData = mQuestionData
-	if (timeRemaining != 0) return
-	nQuestion += 1
-	timeRemaining = 10
+	if (timeRemaining != TIME_END) return
+	timeRemaining = TIME_TOTAL
 	playersInfo.forEach((playerInfo, playerID) => {
 		playerInfo.answer = null
 		playersInfo.set(playerID, playerInfo)
@@ -123,15 +95,16 @@ function launchNextQuestion(mQuestionData) {
 }
 
 function updateQuestionMessage(correctAnswer) {
-	let timeMessage = `Temps restant : ${timeRemaining} seconde${timeRemaining > 1 ? "s" : ""}`
-	if (timeRemaining == 0) {
+	const coercedTimeRemaining = Math.max(timeRemaining, 0)
+	let timeMessage = `Temps restant : ${coercedTimeRemaining} seconde${coercedTimeRemaining > 1 ? "s" : ""}`
+	if (timeRemaining == TIME_END) {
 		timeMessage = 'Temps écoulé'
 	}
 
 	adminPannel.edit(
 		{ embed: { description: 
 			`ADMIN PANNEL - DEV ONLY
-			Question n° ${nQuestion}
+			Question n° n
 			${timeMessage}
 
 			⏩ Prochaine question
@@ -140,43 +113,51 @@ function updateQuestionMessage(correctAnswer) {
 	)
 
 	playersInfo.forEach((playerInfo, _) => {
-		let answer = playerInfo.answer ?? ''
-		let answerMessage = `Votre réponse : ${answer}`
-		if (timeRemaining == 0 && !playerInfo.answer) {
-			answerMessage = 'Vous n\'avez pas répondu'
-		}
-		if (correctAnswer != undefined) {
-			answerMessage += ` ` + (playerInfo.answer == correctAnswer ? '🟢' : '🔴')
-		}
-		playerInfo.message.edit(
-			{ embed: { description: 
-				`Question n° ${nQuestion}
-				${questionData.question}
-				🇦 ${questionData.a}
-				🇧 ${questionData.b}
-				🇨 ${questionData.c}
-				🇩 ${questionData.d}
-				${timeMessage}
-
-				Utilisez 🇦 🇧 🇨 🇩 pour répondre
-				${answerMessage}`
-			} }
-		)
+		playerInfo.message.edit({
+			embed: buildEmbed(true, undefined, playerInfo)
+		})
 	})
 }
 
-/** @param {String} answer */
-function revealAnswer(answer) {
-	// updateQuestionMessage(answer)
+function buildEmbed(isInGame, playerTag, playerInfo) {
+	const coercedTimeRemaining = Math.max(timeRemaining, 0)
 
-	// let answers = []
-	// playersInfo.forEach((playerInfo, playerID) => {
-	// 	playerInfo.message.reactions.cache.array().forEach(r => r.users.remove(playerID))
-	// 	answers.push(answerEmojiMap[playerInfo.answer])
-	// })
-	// console.log("answers")
-	// console.log(answers)
-	// stompServer.send('/displayAnswers', {}, JSON.stringify({ answers: answers }));
+	const logo = new MessageAttachment("src/discord/attachments/logo.png", "logo.png")
+	const embed = new MessageEmbed()
+		.attachFiles(logo)
+		.setAuthor('Le Grand Concours', 'attachment://logo.png')
+		.setThumbnail('attachment://logo.png')
+		.setFooter("Made by Thomennn and Helios")
+	
+	if (isInGame) {
+		let answer = playerInfo.answer ?? ''
+		let answerMessage = `Votre réponse : ${answer}`
+		if (timeRemaining == TIME_END && !playerInfo.answer) {
+			answerMessage = 'Vous n\'avez pas répondu'
+		}
+		
+		embed
+			.setColor(timeRemaining > TIME_END ? '#11bf20' : '#d61111')
+			.setTitle(`Question n° ${questionData.n}   ${':green_square:'.repeat(coercedTimeRemaining) + ':white_large_square:'.repeat(TIME_TOTAL - coercedTimeRemaining)}`)
+			.setDescription(questionData.question)
+			.addFields(
+				{ name: "\u200B", value: "\u200B"},
+				{ name: "🇦", value: questionData.a, inline: true },
+				{ name: "🇧", value: questionData.b, inline: true },
+				{ name: "\u200B", value: "\u200B"},
+				{ name: "🇨", value: questionData.c, inline: true },
+				{ name: "🇩", value: questionData.d, inline: true },
+				{ name: "\u200B", value: "\u200B"},
+				{ name: "Utilisez 🇦 🇧 🇨 🇩 pour répondre ⏬", value: `${answerMessage}`},
+			)
+			.setImage(questionData.url)
+	} else {
+		embed
+			.setColor('#d61111')
+			.setDescription(`Bienvenue ${playerTag} !`)
+	}
+
+	return embed
 }
 
 /** @param {String} answer */
@@ -186,20 +167,16 @@ function retrieveAnswers() {
 		answers.push(answerEmojiMap[playerInfo.answer])
 		playerInfo.message.reactions.cache.array().forEach(r => r.users.remove(playerID))
 	})
-	console.log("answers")
-	console.log(answers)
 	stompServer.send('/displayAnswers', {}, JSON.stringify({ answers: answers }));
 }
 
 function countdown() {
     countdownTimeoutId = setTimeout(() => {
-        if (timeRemaining > 0) {
-			console.log("cd " + timeRemaining)
+        if (timeRemaining > TIME_END) {
             timeRemaining -= 1;
             updateQuestionMessage();
             countdown();
         } else {
-			console.log("cd end")
 			retrieveAnswers()
             countdownTimeoutId = null;
         }
@@ -211,7 +188,7 @@ function countdown() {
  * @param {User} user 
  * */
 function onPlayerReact(reaction, user) {
-	if (!answersEmojis.includes(reaction.emoji.toString()) || timeRemaining == 0 || playersInfo.get(user.id).answer != null) {
+	if (!answersEmojis.includes(reaction.emoji.toString()) || timeRemaining == TIME_END || playersInfo.get(user.id).answer != null) {
 		reaction.users.remove(user.id)
 		return
 	}
@@ -232,10 +209,10 @@ function onTextMessage(message) {
 
 	switch (command) {
 		case 'start':
-			initConcours()
+			initDiscord()
 			break;
 		case 'reset':
-			resetConcours();
+			resetDiscord();
 			break;
 	}
 }
@@ -245,6 +222,8 @@ function onTextMessage(message) {
  * @param {GuildMember[]} players 
  * */
 function startConcours(guild, players) {
+	resetDiscord()
+
 	guild.channels
 		.create('LE GRAND CONCOURS', {
 			type: 'category',
@@ -276,9 +255,7 @@ function startConcours(guild, players) {
 					})
 					.then((channel) => {
 						channel
-							.send({ embed: { description: 
-								`Bienvenue ${player.user.tag} !`
-							} })
+							.send({ embed: buildEmbed(false, player.user.tag) })
 							.then(message => {
 								playersInfo.set(player.id, {
 									player: player,
@@ -298,7 +275,7 @@ function startConcours(guild, players) {
 		})
 		.catch(console.error);
 
-	guild.channels.cache.get(testChannel) //channel
+	guild.channels.cache.get(testChannel)
 		.send({ embed: { description: 
 			`ADMIN PANNEL
 
@@ -315,7 +292,7 @@ function startConcours(guild, players) {
 		.catch(console.error);
 }
 
-function initConcours() {
+function initDiscord() {
 	let guild = client.guilds.cache.get(guildId)
 
 	guild.members.fetch()
@@ -326,10 +303,11 @@ function initConcours() {
 		.catch(g => { console.error("fail to load members" + g)})
 }
 
-function resetConcours() {
-	//delete messages and channels
-	// adminPannel.delete()
-	nQuestion = 0
+function resetDiscord() {
+	try {
+		adminPannel.delete()
+	} catch (error) {}
+
 	playersInfo = new Map();
 	deleteChannels()
 }
@@ -339,14 +317,10 @@ function deleteChannels() {
 
 	guild.channels.cache.array().forEach(ch => {
 		if (ch.name == 'LE GRAND CONCOURS' || (ch.parent != null && ch.parent.name == 'LE GRAND CONCOURS')) {
-			console.log(ch.name)
 			ch.delete()
 		}
 	})
 }
 
 module.exports.start = startBot;
-module.exports.initDiscord = initConcours;
 module.exports.launchNextQuestion = launchNextQuestion;
-module.exports.revealAnswer = revealAnswer;
-module.exports.resetConcours = resetConcours;
