@@ -119,7 +119,7 @@ function updateQuestionMessage(correctAnswer) {
 	})
 }
 
-function buildEmbed(isInGame, playerTag, playerInfo) {
+function buildEmbed(isInGame, playerId, playerInfo) {
 	const coercedTimeRemaining = Math.max(timeRemaining, 0)
 
 	const logo = new MessageAttachment("src/discord/attachments/logo.png", "logo.png")
@@ -141,20 +141,19 @@ function buildEmbed(isInGame, playerTag, playerInfo) {
 			.setTitle(`Question n° ${questionData.n}   ${':green_square:'.repeat(coercedTimeRemaining) + ':white_large_square:'.repeat(TIME_TOTAL - coercedTimeRemaining)}`)
 			.setDescription(questionData.question)
 			.addFields(
-				{ name: "\u200B", value: "\u200B"},
 				{ name: "🇦", value: questionData.a, inline: true },
+				{ name: "\u200B", value: "\u200B", inline: true },
 				{ name: "🇧", value: questionData.b, inline: true },
-				{ name: "\u200B", value: "\u200B"},
 				{ name: "🇨", value: questionData.c, inline: true },
+				{ name: "\u200B", value: "\u200B", inline: true },
 				{ name: "🇩", value: questionData.d, inline: true },
-				{ name: "\u200B", value: "\u200B"},
-				{ name: "Utilisez 🇦 🇧 🇨 🇩 pour répondre ⏬", value: `${answerMessage}`},
+				{ name: `Utilisez 🇦 🇧 🇨 🇩 pour répondre ⏬`, value: `${answerMessage}`},
 			)
 			.setImage(questionData.url)
 	} else {
 		embed
 			.setColor('#d61111')
-			.setDescription(`Bienvenue ${playerTag} !`)
+			.setDescription(`Bienvenue <@${playerId}> !`)
 	}
 
 	return embed
@@ -238,9 +237,15 @@ function startConcours(guild, players) {
 		.then((category) => {
 			categoryID = category.id
 
+			var deskId = 0
 			players.forEach((player) => {
+				playersInfo.set(player.id, {
+					deskId,
+				})
+				deskId++
+
 				guild.channels
-					.create(player.nickname || player.user.username, {
+					.create(playersInfo.get(player.id).deskId + "-" + (player.nickname || player.user.username), {
 						parent: category.id,
 						permissionOverwrites: [
 							{
@@ -255,7 +260,7 @@ function startConcours(guild, players) {
 					})
 					.then((channel) => {
 						channel
-							.send({ embed: buildEmbed(false, player.user.tag) })
+							.send({ embed: buildEmbed(false, player.id) })
 							.then(message => {
 								playersInfo.set(player.id, {
 									player: player,
