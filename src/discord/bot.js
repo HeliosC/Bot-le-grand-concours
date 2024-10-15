@@ -1,6 +1,6 @@
-const { Client, Message, MessageReaction, User, Guild, GuildMember, MessageEmbed, MessageAttachment } = require("discord.js");
+const { Client, Message, MessageReaction, User, Guild, GuildMember, GatewayIntentBits, ChannelType, PermissionsBitField, EmbedBuilder, AttachmentBuilder } = require("discord.js");
 const { isMod } = require("./utils");
-const { commandPrefix, rolesID, guildId, testChannel } = require("./constants");
+const { commandPrefix, rolesID, guildId, testChannel, categoryID } = require("./constants");
 
 const answersEmojis = ["🇦", "🇧", "🇨", "🇩"];
 const answerEmojiMap = { "🇦": "A", "🇧": "B", "🇨": "C", "🇩": "D" };
@@ -15,22 +15,43 @@ var timeRemaining = TIME_END
 var client
 var questionData
 var adminPannel
-var stompServer
+
+var stompServer //TO REMOVE
+
+function getPlayersData(res) {
+	const playerInfoToRes = Array.from(playersInfo.values()).map((playerInfo) => {
+		console.log(playerInfo)
+		return {
+			nickname: playerInfo.player.nickname ?? playerInfo.player.user.globalName ?? playerInfo.player.user.username,
+			avatarURL: playerInfo.player.user.avatarURL()	
+		}
+	})
+	console.log(playerInfoToRes)
+	res.json(playerInfoToRes)
+}
 
 function startBot(mStompServer) {
 	stompServer = mStompServer
 
-	const botClient = new Client();
+	const botClient = new Client({
+		intents : [
+			GatewayIntentBits.Guilds, 
+			GatewayIntentBits.GuildMessages,
+			GatewayIntentBits.GuildMembers,
+			GatewayIntentBits.GuildMessageReactions,
+			GatewayIntentBits.MessageContent
+		]
+	});
 
 	botClient.on('ready', () => { 
-		console.log(`Logged in !`) 
+		console.log(`Discord client logged in !`) 
 		resetDiscord()
 	});
 	botClient.on('error', (e) => console.error(e));
 	botClient.on('warn', (e) => console.warn(e));
     botClient.on('debug', (e) => console.info(e));
 
-    botClient.on('message', (message) => onMessage(message));
+    botClient.on('messageCreate', (message) => onMessage(message));
 	botClient.on('messageReactionAdd', (reaction, user) => onReactionAdd(reaction, user));
     
     botClient.login(process.env.BOT_TOKEN);
@@ -43,7 +64,7 @@ function startBot(mStompServer) {
  * */
 function onMessage(message) {
 	switch(message.channel.type) {
-		case 'text': 
+		case ChannelType.GuildText: 
 			onTextMessage(message);
 			break;
 	}
@@ -56,12 +77,13 @@ function onMessage(message) {
 function onReactionAdd(reaction, user) {
 	if (user.bot) return
 
-	let member = reaction.message.guild.member(user)
-	if (isMod(member, reaction.message.guild) && reaction.message.id == adminPannel.id) {
+	// let member = reaction.message.guild.member(user)
+	let member = reaction.message.guild.members.fetch({ user, force: false })
+	if (isMod(member, reaction.message.guild) && reaction.message.id == adminPannel?.id) {
 		onAdminPannelReact(reaction, user)
 	} else if (playersInfo.has(user.id) && playersInfo.get(user.id).message.id == reaction.message.id) {
 		onPlayerReact(reaction, user)
-	} else if (reaction.message.id != adminPannel.id){
+	} else if (reaction.message.id != adminPannel?.id){
 		return
 	}
 }	
@@ -71,10 +93,12 @@ function onReactionAdd(reaction, user) {
  * @param {User} admin 
  * */
 function onAdminPannelReact(reaction, admin) {
+	if (!adminPannel) return
+
 	const reactionEmoji = reaction.emoji.toString()
 	if (reactionEmoji == nextQuestionEmoji) {
 		launchNextQuestion({ n: 1, question: "Comment s'appelle le cheval blanc d'Henri VI ?", a:"La réponse A", b:"Une autre réponse", c:"Prout !", d:"Tu sais :)", url: "https://cdn.futura-sciences.com/buildsv6/images/largeoriginal/d/5/3/d53a89351b_50036006_mandelbrot-ensemble-wikipedia-commons.jpg" })
-		adminPannel.reactions.cache.array().forEach(r => r.users.remove(admin.id))
+		Array.from(adminPannel.reactions.cache.values()).forEach(r => r.users.remove(admin.id))
 	} else if (answersEmojis.includes(reactionEmoji)) {
 		revealAnswer(reactionEmoji)
 	} else {
@@ -82,7 +106,7 @@ function onAdminPannelReact(reaction, admin) {
 	}
 }
 
-function launchNextQuestion(mQuestionData) {
+function launchNextQuestion(mQuestionData, res) {
 	questionData = mQuestionData
 	if (timeRemaining != TIME_END) return
 	timeRemaining = TIME_TOTAL
@@ -91,43 +115,41 @@ function launchNextQuestion(mQuestionData) {
 		playersInfo.set(playerID, playerInfo)
 	})
 	updateQuestionMessage()
-	countdown()
+	countdown(res)
 }
 
-function updateQuestionMessage(correctAnswer) {
+function updateQuestionMessage() {
 	const coercedTimeRemaining = Math.max(timeRemaining, 0)
 	let timeMessage = `Temps restant : ${coercedTimeRemaining} seconde${coercedTimeRemaining > 1 ? "s" : ""}`
 	if (timeRemaining == TIME_END) {
 		timeMessage = 'Temps écoulé'
 	}
 
-	adminPannel.edit(
-		{ embed: { description: 
+	adminPannel?.edit(
+		{ embeds: [ new EmbedBuilder().setDescription( 
 			`ADMIN PANNEL - DEV ONLY
 			Question n° n
 			${timeMessage}
 
 			⏩ Prochaine question
 			🇦 🇧 🇨 🇩 Selectionner la bonne réponse`
-		} }
+		)]}
 	)
 
 	playersInfo.forEach((playerInfo, _) => {
-		playerInfo.message.edit({
-			embed: buildEmbed(true, undefined, playerInfo)
-		})
+		playerInfo.message.edit(buildEmbed(true, playerInfo.player.id, playerInfo))
 	})
 }
 
 function buildEmbed(isInGame, playerId, playerInfo) {
 	const coercedTimeRemaining = Math.max(timeRemaining, 0)
 
-	const logo = new MessageAttachment("src/discord/attachments/logo.png", "logo.png")
-	const embed = new MessageEmbed()
-		.attachFiles(logo)
-		.setAuthor('Le Grand Concours', 'attachment://logo.png')
+	const logo = new AttachmentBuilder("src/discord/attachments/logo.png", "logo.png")
+	const embed = new EmbedBuilder()
+		// .attachFiles(logo)
+		.setAuthor({ name: 'Le Grand Concours', iconURL: 'attachment://logo.png'})
 		.setThumbnail('attachment://logo.png')
-		.setFooter("Made by Thomennn and Helios")
+		.setFooter({ text: "Made by Thomennn and Helios"})
 	
 	if (isInGame) {
 		let answer = playerInfo.answer ?? ''
@@ -150,33 +172,40 @@ function buildEmbed(isInGame, playerId, playerInfo) {
 				{ name: `Utilisez 🇦 🇧 🇨 🇩 pour répondre ⏬`, value: `${answerMessage}`},
 			)
 			.setImage(questionData.url)
+
+		return { embeds: [embed] }
 	} else {
 		embed
 			.setColor('#d61111')
 			.setDescription(`Bienvenue <@${playerId}> !`)
-	}
 
-	return embed
+		return { embeds: [embed], files: [logo] }
+	}
 }
 
 /** @param {String} answer */
-function retrieveAnswers() {
+function retrieveAnswers(res) {
 	let answers = []
 	playersInfo.forEach((playerInfo, playerID) => {
 		answers.push(answerEmojiMap[playerInfo.answer])
-		playerInfo.message.reactions.cache.array().forEach(r => r.users.remove(playerID))
+		Array.from(playerInfo.message.reactions.cache.values()).forEach(r => r.users.remove(playerID))
 	})
+
+	res.json({ answers: answers })
+
+
+	//TO REMOVE
 	stompServer.send('/displayAnswers', {}, JSON.stringify({ answers: answers }));
 }
 
-function countdown() {
+function countdown(res) {
     countdownTimeoutId = setTimeout(() => {
         if (timeRemaining > TIME_END) {
             timeRemaining -= 1;
             updateQuestionMessage();
-            countdown();
+            countdown(res);
         } else {
-			retrieveAnswers()
+			retrieveAnswers(res)
             countdownTimeoutId = null;
         }
     }, 1000);
@@ -201,6 +230,7 @@ function onPlayerReact(reaction, user) {
  *  @param {Message} message 
  * */
 function onTextMessage(message) {
+
 	if (!isMod(message.member, message.guild)) return
 
 	if (!message.content.startsWith(commandPrefix) || message.author.bot) return
@@ -222,20 +252,28 @@ function onTextMessage(message) {
  * */
 function startConcours(guild, players) {
 	resetDiscord()
-
-	guild.channels
-		.create('LE GRAND CONCOURS', {
-			type: 'category',
+	//category = guild.channels.cache.get(categoryID)
+		/*.create({
+			name: 'LE GRAND CONCOURS',
+			type: ChannelType.GuildCategory,
 			permissionOverwrites: [
 				{
 					id: guild.roles.cache.find(r => r.name === '@everyone').id,
-					deny: ['VIEW_CHANNEL', 'SEND_MESSAGES']
+					deny: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages]
+				},
+				{
+					id: guild.roles.cache.find(r => r.id === rolesID.bot).id,
+					allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages]
 				}
 			],
 			position: 1
-		})
-		.then((category) => {
-			categoryID = category.id
+		})*/
+
+
+		
+
+		//.then((category) => {
+			//categoryID = category.id
 
 			var deskId = 0
 			players.forEach((player) => {
@@ -245,22 +283,27 @@ function startConcours(guild, players) {
 				deskId++
 
 				guild.channels
-					.create(playersInfo.get(player.id).deskId + "-" + (player.nickname || player.user.username), {
-						parent: category.id,
+					.create({
+						name: (playersInfo.get(player.id).deskId + 1) + "-" + (player.nickname || player.user.username),
+						parent: categoryID,
 						permissionOverwrites: [
 							{
 								id: guild.roles.cache.find(r => r.name === '@everyone').id,
-								deny: ['VIEW_CHANNEL', 'SEND_MESSAGES']
+								deny: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages]
+							},
+							{
+								id: guild.roles.cache.find(r => r.id === rolesID.bot).id,
+								allow: [PermissionsBitField.Flags.ManageChannels, PermissionsBitField.Flags.ManageMessages, PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages]
 							},
 							{
 								id: player.id,
-								allow: ['VIEW_CHANNEL']
+								allow: [PermissionsBitField.Flags.ViewChannel]
 							}
 						]
 					})
 					.then((channel) => {
 						channel
-							.send({ embed: buildEmbed(false, player.id) })
+							.send(buildEmbed(false, player.id))
 							.then(message => {
 								playersInfo.set(player.id, {
 									player: player,
@@ -277,40 +320,40 @@ function startConcours(guild, players) {
 					})
 					.catch(console.error);
 			})
-		})
-		.catch(console.error);
+		//})
+		//.catch(console.error);
 
 	guild.channels.cache.get(testChannel)
-		.send({ embed: { description: 
-			`ADMIN PANNEL
+		?.send({ embeds: [new EmbedBuilder()
+			.setDescription(`ADMIN PANNEL
 
 			⏩ Prochaine question
-			🇦 🇧 🇨 🇩 Selectionner la bonne réponse`
-		} })
-
-		.then(message => { adminPannel = message })
-		.then(() => adminPannel.react(nextQuestionEmoji))
-		.then(() => adminPannel.react(answersEmojis[0]))
-		.then(() => adminPannel.react(answersEmojis[1]))
-		.then(() => adminPannel.react(answersEmojis[2]))
-		.then(() => adminPannel.react(answersEmojis[3]))
-		.catch(console.error);
+			🇦 🇧 🇨 🇩 Selectionner la bonne réponse`)
+		]})
+		?.then(message => { adminPannel = message })
+		?.then(() => adminPannel.react(nextQuestionEmoji))
+		?.then(() => adminPannel.react(answersEmojis[0]))
+		?.then(() => adminPannel.react(answersEmojis[1]))
+		?.then(() => adminPannel.react(answersEmojis[2]))
+		?.then(() => adminPannel.react(answersEmojis[3]))
+		?.catch(console.error);
 }
 
 function initDiscord() {
 	let guild = client.guilds.cache.get(guildId)
 
+    //TODO: BY ROLE?
 	guild.members.fetch()
 		.then(members => {
 			let players = members.filter(m => m.roles.cache.some(r => r.id === rolesID.player))
 			startConcours(guild, players)
 		})
-		.catch(g => { console.error("fail to load members" + g)})
+		.catch(g => { console.error("failed to load members" + g) })
 }
 
 function resetDiscord() {
 	try {
-		adminPannel.delete()
+		adminPannel?.delete()
 	} catch (error) {}
 
 	playersInfo = new Map();
@@ -320,12 +363,14 @@ function resetDiscord() {
 function deleteChannels() {
 	let guild = client.guilds.cache.get(guildId)
 
-	guild.channels.cache.array().forEach(ch => {
-		if (ch.name == 'LE GRAND CONCOURS' || (ch.parent != null && ch.parent.name == 'LE GRAND CONCOURS')) {
-			ch.delete()
+	Array.from(guild.channels.cache.values()).forEach(ch => { //By Parent
+		//if (ch.name == 'LE GRAND CONCOURS' || (ch.parent != null && ch.parent.name == 'LE GRAND CONCOURS')) {
+		if (ch.parent == categoryID) {
+				ch.delete()
 		}
 	})
 }
 
 module.exports.start = startBot;
 module.exports.launchNextQuestion = launchNextQuestion;
+module.exports.getPlayersData = getPlayersData;

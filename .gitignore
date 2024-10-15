@@ -2,3 +2,4 @@ node_modules/
 START test.bat
 src/discord/constants.js
 src/discord/constantsT.js
+START.bat

@@ -1,4 +1,4 @@
-//WS
+//WS TO REMOVE AFTER UE
 const http = require("http")
 const StompServer = require('stomp-broker-js')
 
@@ -20,13 +20,22 @@ app.use(express.static('public'))
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
-app.listen(HTTPPort, () => {
+const serverHttp = app.listen(HTTPPort, () => {
     console.log(`HTTP port ${HTTPPort} listened`)
 })
 
+serverHttp.keepAliveTimeout = 30 * 1000;
+serverHttp.headersTimeout = 35 * 1000;
+
 router.post('/question', (req, res) => {
-    bot.launchNextQuestion(req.body)
-    res.json({ prout: 4242 })
+    console.log("request " + JSON.stringify(req.body))
+    bot.launchNextQuestion(req.body, res)
+})
+
+router.get('/players', (req, res) => {
+    console.log("/players " + JSON.stringify(req.body))
+    bot.getPlayersData(res)
+	//res.json(["a","b","c"])
 })
 
 app.use('/', router)
