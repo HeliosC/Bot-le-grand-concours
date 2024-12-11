@@ -365,7 +365,7 @@ function deleteChannels() {
 
 	Array.from(guild.channels.cache.values()).forEach(ch => { //By Parent
 		//if (ch.name == 'LE GRAND CONCOURS' || (ch.parent != null && ch.parent.name == 'LE GRAND CONCOURS')) {
-		if (ch.parent == categoryID) {
+		if (ch.parent != null && ch.parent.id === categoryID) {
 				ch.delete()
 		}
 	})
