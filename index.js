@@ -38,6 +38,18 @@ router.get('/players', (req, res) => {
 	//res.json(["a","b","c"])
 })
 
+var savedData
+router.post('/save', (req, res) => {
+    console.log("save " + JSON.stringify(req.body))
+    savedData = req.body
+    res.json()
+})
+
+router.get('/retrieve', (req, res) => {
+    console.log("retrieve ")
+    res.json(savedData)
+})
+
 app.use('/', router)
 
 //DISCORD
