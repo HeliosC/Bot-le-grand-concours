@@ -1,10 +1,12 @@
 module.exports = {
 	guildId: "",
+	categoryID: "",
 	rolesID: {
 		admin: "",
 		moderator: "",
 		test: "",
-		player: ""
+		player: "",
+		bot: ""
 	},
 	usersID: {
 		helios: ""
