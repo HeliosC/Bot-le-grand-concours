@@ -1,13 +1,13 @@
 //WS TO REMOVE AFTER UE
-const http = require("http")
-const StompServer = require('stomp-broker-js')
+//const http = require("http")
+//const StompServer = require('stomp-broker-js')
 
-const WSPort = 61614
-const server = http.createServer()
-const stompServer = new StompServer({server: server})
-server.listen(WSPort, () => {
-    console.log(`WS port ${WSPort} listened`)
-})
+//const WSPort = 61614
+//const server = http.createServer()
+//const stompServer = new StompServer({server: server})
+//server.listen(WSPort, () => {
+//    console.log(`WS port ${WSPort} listened`)
+//})
 
 //HTTP
 const express = require('express')
@@ -54,4 +54,4 @@ app.use('/', router)
 
 //DISCORD
 const bot = require('./src/discord/bot')
-bot.start(stompServer)
+bot.start()

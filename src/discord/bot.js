@@ -16,7 +16,7 @@ var client
 var questionData
 var adminPannel
 
-var stompServer //TO REMOVE
+//var stompServer //TO REMOVE
 
 function getPlayersData(res) {
 	const playerInfoToRes = Array.from(playersInfo.values()).map((playerInfo) => {
@@ -30,8 +30,8 @@ function getPlayersData(res) {
 	res.json(playerInfoToRes)
 }
 
-function startBot(mStompServer) {
-	stompServer = mStompServer
+function startBot() {
+	//stompServer = mStompServer
 
 	const botClient = new Client({
 		intents : [
@@ -195,7 +195,7 @@ function retrieveAnswers(res) {
 
 
 	//TO REMOVE
-	stompServer.send('/displayAnswers', {}, JSON.stringify({ answers: answers }));
+	//stompServer.send('/displayAnswers', {}, JSON.stringify({ answers: answers }));
 }
 
 function countdown(res) {
