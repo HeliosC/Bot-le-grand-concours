@@ -9,7 +9,7 @@ const nextQuestionEmoji = '⏩'
 var playersInfo = new Map();
 
 const TIME_TOTAL = 10
-const TIME_END = -3
+const TIME_END = -2
 var timeRemaining = TIME_END
 
 var client
