@@ -1,6 +1,6 @@
 const { Client, Message, MessageReaction, User, Guild, GuildMember, GatewayIntentBits, ChannelType, PermissionsBitField, EmbedBuilder, AttachmentBuilder } = require("discord.js");
 const { isMod } = require("./utils");
-const { commandPrefix, rolesID, guildId, testChannel, categoryID } = require("./constants");
+const { commandPrefix, rolesID, guildId, testChannel, categoryID } = require("./constants/constants");
 
 const answersEmojis = ["🇦", "🇧", "🇨", "🇩"];
 const answerEmojiMap = { "🇦": "A", "🇧": "B", "🇨": "C", "🇩": "D" };
@@ -20,13 +20,11 @@ var adminPannel
 
 function getPlayersData(res) {
 	const playerInfoToRes = Array.from(playersInfo.values()).map((playerInfo) => {
-		console.log(playerInfo)
 		return {
 			nickname: playerInfo.player.nickname ?? playerInfo.player.user.globalName ?? playerInfo.player.user.username,
 			avatarURL: playerInfo.player.user.avatarURL()	
 		}
 	})
-	console.log(playerInfoToRes)
 	res.json(playerInfoToRes)
 }
 

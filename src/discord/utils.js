@@ -1,5 +1,5 @@
 const { GuildMember, Guild } = require("discord.js");
-const { rolesID, usersID } = require("./constants");
+const { rolesID, usersID } = require("./constants/constants");
 
 /** 
  * @param {GuildMember} member 

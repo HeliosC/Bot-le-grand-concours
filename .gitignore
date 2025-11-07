@@ -4,3 +4,7 @@ src/discord/constants.js
 src/discord/constantsT.js
 START.bat
 /START.sh
+.idea/
+src/discord/constants/constants.js
+src/discord/constants/constants-baf.js
+src/discord/constants/constants-discordtest.js
