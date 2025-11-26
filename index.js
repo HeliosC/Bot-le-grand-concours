@@ -28,25 +28,25 @@ serverHttp.keepAliveTimeout = 30 * 1000;
 serverHttp.headersTimeout = 35 * 1000;
 
 router.post('/question', (req, res) => {
-    console.log("request " + JSON.stringify(req.body))
+    console.log("POST /question " + JSON.stringify(req.body))
     bot.launchNextQuestion(req.body, res)
 })
 
 router.get('/players', (req, res) => {
-    console.log("/players " + JSON.stringify(req.body))
+    console.log("GET /players")
     bot.getPlayersData(res)
 	//res.json(["a","b","c"])
 })
 
 var savedData
 router.post('/save', (req, res) => {
-    console.log("save " + JSON.stringify(req.body))
+    console.log("POST /save " + JSON.stringify(req.body))
     savedData = req.body
     res.json()
 })
 
 router.get('/retrieve', (req, res) => {
-    console.log("retrieve ")
+    console.log("GET /retrieve ")
     res.json(savedData)
 })
 

@@ -1,6 +1,10 @@
-const { Client, Message, MessageReaction, User, Guild, GuildMember, GatewayIntentBits, ChannelType, PermissionsBitField, EmbedBuilder, AttachmentBuilder } = require("discord.js");
+const { Client, Message, MessageReaction, User, Guild, GuildMember, GatewayIntentBits, ChannelType, PermissionsBitField, EmbedBuilder, AttachmentBuilder, Events, Collection, MessageFlags, ButtonBuilder, ButtonStyle, ActionRowBuilder } = require("discord.js");
+const fs = require('node:fs');
+const path = require('node:path');
+
 const { isMod } = require("./utils");
 const { commandPrefix, rolesID, guildId, testChannel, categoryID } = require("./constants/constants");
+const { log, error } = require("node:console");
 
 const answersEmojis = ["🇦", "🇧", "🇨", "🇩"];
 const answerEmojiMap = { "🇦": "A", "🇧": "B", "🇨": "C", "🇩": "D" };
@@ -17,6 +21,45 @@ var questionData
 var adminPannel
 
 //var stompServer //TO REMOVE
+
+
+function generateCommands() {
+	//generate commands object
+	client.commands = new Collection();
+	const foldersPath = path.join(__dirname, 'commands');
+	const commandFolders = fs.readdirSync(foldersPath);
+
+	for (const folder of commandFolders) {
+		const commandsPath = path.join(foldersPath, folder);
+		const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+		for (const file of commandFiles) {
+			const filePath = path.join(commandsPath, file);
+			const command = require(filePath);
+			// Set a new item in the Collection with the key as the command name and the value as the exported module
+			if ('data' in command && 'execute' in command) {
+				client.commands.set(command.data.name, command);
+			} else {
+				console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
+			}
+		}
+	}
+}
+
+function executeListeners() {
+	//execute event listeners
+	const eventsPath = path.join(__dirname, 'events');
+	const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
+
+	for (const file of eventFiles) {
+		const filePath = path.join(eventsPath, file);
+		const event = require(filePath);
+		if (event.once) {
+			client.once(event.name, (...args) => event.execute(...args));
+		} else {
+			client.on(event.name, (...args) => event.execute(...args));
+		}
+	}
+}
 
 function getPlayersData(res) {
 	const playerInfoToRes = Array.from(playersInfo.values()).map((playerInfo) => {
@@ -51,10 +94,13 @@ function startBot() {
 
     botClient.on('messageCreate', (message) => onMessage(message));
 	botClient.on('messageReactionAdd', (reaction, user) => onReactionAdd(reaction, user));
-    
+
     botClient.login(process.env.BOT_TOKEN);
 
 	client = botClient
+
+	generateCommands()
+	executeListeners()
 }
 
 /** 
@@ -106,17 +152,10 @@ function onAdminPannelReact(reaction, admin) {
 
 function launchNextQuestion(mQuestionData, res) {
 	questionData = mQuestionData
-	if (timeRemaining != TIME_END) return
-	timeRemaining = TIME_TOTAL
-	playersInfo.forEach((playerInfo, playerID) => {
-		playerInfo.answer = null
-		playersInfo.set(playerID, playerInfo)
-	})
-	updateQuestionMessage()
-	countdown(res)
+	updateQuestionMessage(res)
 }
 
-function updateQuestionMessage() {
+function updateQuestionMessage(res) {
 	const coercedTimeRemaining = Math.max(timeRemaining, 0)
 	let timeMessage = `Temps restant : ${coercedTimeRemaining} seconde${coercedTimeRemaining > 1 ? "s" : ""}`
 	if (timeRemaining == TIME_END) {
@@ -133,13 +172,49 @@ function updateQuestionMessage() {
 			🇦 🇧 🇨 🇩 Selectionner la bonne réponse`
 		)]}
 	)
+	
+	Promise.all(
+		Array.from(playersInfo.values()).map(playerInfo => {
+			playerInfo.answer = undefined
 
-	playersInfo.forEach((playerInfo, _) => {
-		playerInfo.message.edit(buildEmbed(true, playerInfo.player.id, playerInfo))
+			return playerInfo.message.edit(buildGameMessage(true, playerInfo.player.id, playerInfo))
+				.then(message => {
+					return message.awaitMessageComponent({
+						filter: i => i.user.id === playerInfo.player.id,
+						time: (TIME_TOTAL - TIME_END) * 1000
+					}).then(interaction => {
+
+						//playersInfo.get(playerInfo.player.id).answer = reaction.emoji.toString()
+						playerInfo.answer = interaction.customId
+						
+						interaction.update(buildGameMessage(true, playerInfo.player.id, playerInfo))
+
+						return interaction.customId
+					})
+					.catch(error => {
+						playerInfo.answer = null
+
+						const reply = buildGameMessage(true, playerInfo.player.id, playerInfo)
+						message.edit(reply)
+						return null
+					})
+				})
+		})
+	).then((values) => {
+		console.log(values);
+
+		res.json({ answers: values })
 	})
 }
 
-function buildEmbed(isInGame, playerId, playerInfo) {
+async function getPlayerAnswer(message) {
+	const played = await message.awaitMessageComponent({
+		filter: i => i.user.id === game.users[game.connect4Game.currentPlayer - 1].id,
+		time: (TIME_TOTAL - TIME_END) * 1000
+	})
+}
+
+function buildGameMessage(isInGame, playerId, playerInfo) {
 	const coercedTimeRemaining = Math.max(timeRemaining, 0)
 
 	const logo = new AttachmentBuilder("src/discord/attachments/logo.png", "logo.png")
@@ -157,21 +232,12 @@ function buildEmbed(isInGame, playerId, playerInfo) {
 		}
 		
 		embed
-			.setColor(timeRemaining > TIME_END ? '#11bf20' : '#d61111')
-			.setTitle(`Question n° ${questionData.n}   ${':green_square:'.repeat(coercedTimeRemaining) + ':white_large_square:'.repeat(TIME_TOTAL - coercedTimeRemaining)}`)
+			.setColor(playerInfo.answer === undefined ? '#11bf20' : '#d61111')
+			.setTitle(`Question n° ${questionData.n}`)
 			.setDescription(questionData.question)
-			.addFields(
-				{ name: "🇦", value: questionData.a, inline: true },
-				{ name: "\u200B", value: "\u200B", inline: true },
-				{ name: "🇧", value: questionData.b, inline: true },
-				{ name: "🇨", value: questionData.c, inline: true },
-				{ name: "\u200B", value: "\u200B", inline: true },
-				{ name: "🇩", value: questionData.d, inline: true },
-				{ name: `Utilisez 🇦 🇧 🇨 🇩 pour répondre ⏬`, value: `${answerMessage}`},
-			)
 			.setImage(questionData.url)
 
-		return { embeds: [embed] }
+		return { embeds: [embed], components: getAnswerButtons(questionData, playerInfo.answer) }
 	} else {
 		embed
 			.setColor('#d61111')
@@ -179,6 +245,33 @@ function buildEmbed(isInGame, playerId, playerInfo) {
 
 		return { embeds: [embed], files: [logo] }
 	}
+}
+
+function getAnswerButtons(questionData, answer) {	
+	const AButton = new ButtonBuilder()
+		.setCustomId('A')
+		.setLabel("A) " + questionData.a)
+		.setStyle((answer !== undefined && answer != 'A') ? ButtonStyle.Secondary : ButtonStyle.Primary);
+
+	const BButton = new ButtonBuilder()
+		.setCustomId('B')
+		.setLabel("B) " + questionData.b)
+		.setStyle((answer !== undefined && answer != 'B') ? ButtonStyle.Secondary : ButtonStyle.Primary);
+
+	const CButton = new ButtonBuilder()
+		.setCustomId('C')
+		.setLabel("C) " + questionData.c)
+		.setStyle((answer !== undefined && answer != 'C') ? ButtonStyle.Secondary : ButtonStyle.Primary);
+
+	const DButton = new ButtonBuilder()
+		.setCustomId('D')
+		.setLabel("D) " + (questionData.d))
+		.setStyle((answer !== undefined && answer != 'D') ? ButtonStyle.Secondary : ButtonStyle.Primary);
+
+	const row1 = new ActionRowBuilder().addComponents(AButton, BButton)
+	const row2 = new ActionRowBuilder().addComponents(CButton, DButton)
+
+	return [row1, row2]
 }
 
 /** @param {String} answer */
@@ -230,25 +323,13 @@ function onPlayerReact(reaction, user) {
 function onTextMessage(message) {
 
 	if (!isMod(message.member, message.guild)) return
-
-	if (!message.content.startsWith(commandPrefix) || message.author.bot) return
-	const command = message.content.slice(commandPrefix.length).split(/\s+/)[0]
-
-	switch (command) {
-		case 'start':
-			initDiscord()
-			break;
-		case 'reset':
-			resetDiscord();
-			break;
-	}
 }
 
 /** 
  * @param {Guild} guild 
  * @param {GuildMember[]} players 
  * */
-function startConcours(guild, players) {
+function startConcours(interaction, guild, players) {
 	resetDiscord()
 	//category = guild.channels.cache.get(categoryID)
 		/*.create({
@@ -301,7 +382,7 @@ function startConcours(guild, players) {
 					})
 					.then((channel) => {
 						channel
-							.send(buildEmbed(false, player.id))
+							.send(buildGameMessage(false, player.id))
 							.then(message => {
 								playersInfo.set(player.id, {
 									player: player,
@@ -310,10 +391,6 @@ function startConcours(guild, players) {
 									answer: null
 								})
 							})
-							.then(() => playersInfo.get(player.id).message.react(answersEmojis[0]))
-							.then(() => playersInfo.get(player.id).message.react(answersEmojis[1]))
-							.then(() => playersInfo.get(player.id).message.react(answersEmojis[2]))
-							.then(() => playersInfo.get(player.id).message.react(answersEmojis[3]))
 							.catch(console.error);
 					})
 					.catch(console.error);
@@ -321,41 +398,39 @@ function startConcours(guild, players) {
 		//})
 		//.catch(console.error);
 
-	guild.channels.cache.get(testChannel)
-		?.send({ embeds: [new EmbedBuilder()
-			.setDescription(`ADMIN PANNEL
 
-			⏩ Prochaine question
-			🇦 🇧 🇨 🇩 Selectionner la bonne réponse`)
-		]})
-		?.then(message => { adminPannel = message })
-		?.then(() => adminPannel.react(nextQuestionEmoji))
-		?.then(() => adminPannel.react(answersEmojis[0]))
-		?.then(() => adminPannel.react(answersEmojis[1]))
-		?.then(() => adminPannel.react(answersEmojis[2]))
-		?.then(() => adminPannel.react(answersEmojis[3]))
-		?.catch(console.error);
+	interaction.reply({
+		content: "Concours lancé !",
+		flags: MessageFlags.Ephemeral	
+	})
 }
 
-function initDiscord() {
+function initDiscord(interaction) {
+	console.log("initDiscord");
+
 	let guild = client.guilds.cache.get(guildId)
 
     //TODO: BY ROLE?
 	guild.members.fetch()
 		.then(members => {
 			let players = members.filter(m => m.roles.cache.some(r => r.id === rolesID.player))
-			startConcours(guild, players)
+			startConcours(interaction, guild, players)
 		})
 		.catch(g => { console.error("failed to load members" + g) })
 }
 
-function resetDiscord() {
+function resetDiscord(interaction) {
 	try {
 		adminPannel?.delete()
 	} catch (error) {}
 
 	playersInfo = new Map();
 	deleteChannels()
+
+	interaction?.reply({
+		content: "Suppression lancée",
+		flags: MessageFlags.Ephemeral
+	})
 }
 
 function deleteChannels() {
@@ -372,3 +447,6 @@ function deleteChannels() {
 module.exports.start = startBot;
 module.exports.launchNextQuestion = launchNextQuestion;
 module.exports.getPlayersData = getPlayersData;
+
+module.exports.initDiscordAndStartConcours = initDiscord;
+module.exports.resetDiscord = resetDiscord;

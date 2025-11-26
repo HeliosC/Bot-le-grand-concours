@@ -8,3 +8,5 @@ START.bat
 src/discord/constants/constants.js
 src/discord/constants/constants-baf.js
 src/discord/constants/constants-discordtest.js
+Deploy commands.bat
+START DEV.bat

@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
-    "index": "nodemon -e js,handlebars,css index.js"
+    "index": "nodemon -e js,handlebars,css index.js",
+    "deploy-commands": "node ./src/discord/deploy-commands.js"
   },
   "repository": {
     "type": "git",
